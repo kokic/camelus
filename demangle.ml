@@ -204,12 +204,16 @@ let gcc_breaker' = gcc_breaker [] 0
 let gcc_cut s = let xs, n = gcc_breaker' s in xs ++ "::", s >> n
 let gcc_name_cut s = gcc_cut (if s.[0] == 'N' then s >> 1 else s)
 
-type stat = Normal | Pointer | Reference | Const
+type stat = Normal 
+  | Pointer 
+  | Reference (* left *) | RReference (* right *)
+  | Const
 
 let gcc_status s status = 
   let single stat = match stat with
     | Pointer -> "*" 
     | Reference -> "&" 
+    | RReference -> "&&"
     | Const -> " const"
     | _ -> "" in
   s ^ map single (rev status) ++ ""
@@ -223,6 +227,7 @@ let rec gcc_of_params xs s status = if (=?) s <= 0 then xs else
     | 'E' -> gcc_of_params xs (s >> 1) []
     | 'P' -> record_status Pointer
     | 'R' -> record_status Reference
+    | 'O' -> record_status RReference
     | 'K' -> record_status Const
     | ___ -> let (piece, pos) = globals gcc_is_alias s in
              if pos < 0 then let name, surplus = gcc_cut s in
@@ -241,52 +246,6 @@ else s
 ;; print_endline (gcc_demangle "_ZN6Player14setCarriedItemERK12ItemInstance")
 ;; print_endline (gcc_demangle "_ZN6Player7setNameERKSs")
 ;; print_endline (gcc_demangle "_ZN6Player8setArmorE9ArmorSlotRK12ItemInstance")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-(*
-let pair = gcc_cut "4Name3fooEiSs"
-;; print_endline (fst pair ^ "\n" ^ snd pair)
-*)
-
-
-(*
-let rec gcc_name_scan s xs = match (=?) s with 0 -> xs | _ -> 
-  let consume (n, t) = gcc_name_scan (drops n s) (push xs t) in 
-  let (piece, pos) = locals ('0' -~ '9') s in
-  let offset = int_of_string piece in 
-  let name = String.sub s (pos + 1) offset in
-  consume (offset + 1, name)
-let gcc_of_name s = String.concat "::" (gcc_name_scan s [])
-;; print_endline (gcc_of_name "4Name3foo6Google2GC") *)
-
-
-(*
-let rec gcc_alias_breaker s xs = match (=?) s with 0 -> xs | _ -> 
-  let consume (n, t) = gcc_alias_breaker (drops n s) (push xs (gcc_of_alias t)) in 
-  let (piece, pos) = globals (gcc_is_alias) s in
-  consume (pos + 1, piece)
-let gcc_alias_scan' s = gcc_alias_breaker s [] 
-(* ;; print_endline (String.concat ", " (gcc_alias_scan' "iSsb")) *)
-*)
-
-
-
-
 
 
 
