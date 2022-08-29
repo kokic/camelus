@@ -167,13 +167,6 @@ for index = 1 to 5 do
   (* print_endline (next_token_fixed 'a' 5) *)
 done ;;
 
-let input = "中午吃啥" in
-let len = String.length input in
-let xs = init (len / 3) (fun i -> String.sub input (3 * i) 3) in
-Printf.printf "%s" (String.concat "_" xs)
-
-
-
 
 
 (*
