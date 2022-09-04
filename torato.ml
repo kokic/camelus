@@ -3,6 +3,7 @@
 
 open List
 
+
 let id x = x
 let delta condition x y = if condition then x else y
 let delta_lazy condition fx fy = if condition then fx () else fy ()
