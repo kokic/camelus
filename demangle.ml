@@ -159,6 +159,8 @@ let globals pred s = case_opt ("", -1) (globals_opt pred s)
 
 
 
+
+
 (* GCC - Itanium C++ ABI’s name mangling rules *)
 
 let gcc_mangle_encodings = StringMap . ( empty 
@@ -393,8 +395,5 @@ else s
      ::= TI <type>  # typeinfo structure
      ::= TS <type>  # typeinfo name (null-terminated byte string)
 *)
-
-
-
 
 
