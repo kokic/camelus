@@ -31,13 +31,12 @@ let split_ascii s s' = let head = s'.[0] in let ts = s' >> 1 in
     else lizard xs @ [last xs ^ Char.escaped head ^ x] in
   iter (fun x -> xs' := push_or_cat !xs' x) (tails xs); !xs'  
 
-;; print_endline (split_ascii "AppleOfTreeOfEarthInTheSpace" "Of" ++ ", ")
-;; 
+(* ;; print_endline (split_ascii "AppleOfTreeOfEarthInTheSpace" "Of" ++ ", ") *)
 
-let input = "中午吃啥" in
-let len = String.length input in
-let xs = init (len / 3) (fun i -> String.sub input (3 * i) 3) in
-Printf.printf "%s" (xs ++ "_")
+let explode_3char s = init ((=?) s / 3) (fun i -> subs s (3 * i) 3)
+let explode_unicode = explode_3char
+
+;; Printf.printf "%s" (explode_unicode "あいうえ" ++ "_")
 
 
 
