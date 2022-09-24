@@ -208,7 +208,8 @@ let gcc_name_cut s = gcc_cut (if s.[0] == 'N' then s >> 1 else s)
 
 type stat = Normal 
   | Pointer 
-  | Reference (* left *) | RReference (* right *)
+  | Reference  (* left *) 
+  | RReference (* right *)
   | Const
 
 let gcc_status s status = 
