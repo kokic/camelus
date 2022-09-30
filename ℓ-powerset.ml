@@ -19,7 +19,6 @@ let show_list = fun xs -> "[" ^ xs ++ ", " ^ "]"
 
 (* powerset of list *)
 
-
 let rec powset = function
   | [] -> [[]]
   | x :: xs -> let ps = powset xs in 
@@ -27,9 +26,20 @@ let rec powset = function
 
 let powset_tos xs = "{" ^ manifold comma xs show_set "∅" ^ "}"
 
-;; 
-let xs = powset ["a" ; "b"] in
-print_endline (powset_tos xs)
+let rec powset_ell ell xs = match ell with
+  | 0 -> [] 
+  | 1 -> [xs]
+  | 2 -> powset xs
+  | _ -> let prec = powset_ell (ell - 1) xs in 
+         let succ = List.map (fun l -> powset l) prec 
+         in concat succ
+
+
+
+;; print_endline (powset_tos (powset_ell 2 ["a" ; "b"])) 
+;; print_endline (powset_tos (powset_ell 3 ["a" ; "b"]))
+;; print_endline (powset_tos (powset_ell 4 ["a" ; "b"]))
+
 
 
 
