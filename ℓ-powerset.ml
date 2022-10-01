@@ -26,20 +26,20 @@ let rec powset = function
 
 let powset_tos xs = "{" ^ manifold comma xs show_set "∅" ^ "}"
 
-let rec powset_ell ell xs = match ell with
+let rec ellps ell xs = match ell with
   | 0 -> [] 
   | 1 -> [xs]
   | 2 -> powset xs
-  | _ -> let prec = powset_ell (ell - 1) xs in 
-         let succ = List.map (fun l -> powset l) prec 
-         in concat succ
+  | _ -> if ell < 0 && ell mod 2 == 0 then ellps (-ell) xs
+         else let prec = ellps (ell - 1) xs in 
+         concat (List.map (fun l -> powset l) prec)
+      
+let print_ellps ell src = let xs = ellps ell src in 
+  print_endline (powset_tos xs ^ ": " ^ string_of_int(length xs)) 
 
+let print_ellps_ab ell = print_ellps ell ["a" ; "b"]
 
-
-;; print_endline (powset_tos (powset_ell 2 ["a" ; "b"])) 
-;; print_endline (powset_tos (powset_ell 3 ["a" ; "b"]))
-;; print_endline (powset_tos (powset_ell 4 ["a" ; "b"]))
-
-
+;; print_ellps_ab (-3)
+;; print_ellps_ab (-5)
 
 
