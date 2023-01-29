@@ -10,8 +10,6 @@ let exactly x s = if x == s.[0]
 
 let lbrace = exactly '{'
 
-;; 
-
 let tuple_map t f g = (f (fst t), g (snd t))
 let tuple_map' t f = tuple_map t f Fun.id
 let print_tuple t = print_endline ("(\"" ^ fst t ^ "\", \"" ^ snd t ^ "\")")
