@@ -51,21 +51,22 @@ let follow a b source = destruct (a source)
 (fun a1 a2 -> destruct (b a2) (fun b1 b2 -> return (a1, b1) b2))
 let (<&>) = follow
 
+let move a b = (a <&> b |> map) snd
+let (->>) = move
+
 let either a b source = match a source with Some _ as x -> x | _ -> b source
 let (<|>) = either
 
 let skip a b source = destruct (a source)
 (fun a1 a2 -> destruct (b a2) (fun b1 b2 -> return a1 b2))
-let (<^>) = skip
+let (<<-) = skip
 
 
 let space = exactly ' '
 let spacea = space |> asterisk
 let spaces = space |> plus
 
-
-let loose a = (spacea <&> a |> map) snd
-let soft a = loose a <^> spacea
+let soft a = spacea ->> a <<- spacea
 
 
 let (-~) a b = fun x -> a <= x && x <= b
@@ -78,6 +79,12 @@ let letter = token (fun x -> ('A' -~ 'Z') x || ('a' -~ 'z') x)
 let letters = letter |> plus
 
 
+let map_tuple f x = f (fst x) (snd x)
+let tuple_map f g x = (f (fst x), g (snd x))
+
+
+
+(* javascript *)
 
 let underline_or_dollar = includes ['_'; '$']
 
@@ -85,16 +92,31 @@ let operators xs = includes xs |> soft
 let unary_prefix = operators ['!'; '^'; '+'; '-']
 let incre_sides = inclusive 2 ["++"; "--"] |> soft
 let mul_infix = exactly' "**" <|> includes ['*'; '/'; '%'] |> soft
+let add_infix = includes ['+'; '-']
+let shift_infix = inclusive 2 ["<<"; ">>"]
+let eq_infix = inclusive 2 ["=="; "!="]
+let rel_infix = inclusive 2 ["<="; ">="] <|> includes ['<'; '>']
+let assign_infix = exactly '=' 
+  <|> inclusive 3 ["<<="; ">>="; "**="]
+  <|> inclusive 2 ["&="; "|="; "^="; "+="; "-="; "*="; "/="; "%="]
 
+let identifier_head = underline_or_dollar <|> letter
+let identifier_body = letters <|> digits <|> underline_or_dollar |> asterisk
+let identifier = map (identifier_head <&> identifier_body) (map_tuple (^))
 
-let tuple_map f g x = (f (fst x), g (snd x))
-let tuple_map' f x = tuple_map f Fun.id x
+let number = digits
+
+let quotes = includes ['\''; '"']
+let text_value = token (fun x -> x != '\'' && x != '\"') |> asterisk
+let text = quotes ->> text_value <<- quotes
+
+let primary_expr = identifier <|> number <|> text
 
 
 let string_of_pair x y = ("('" ^ x ^ "', '" ^ y ^ "')")
 let string_of_pair' x = string_of_pair (fst x) (snd x)
 let fflat f x = let a = fst x in (f (fst a) (snd a), snd x)
-let sfflat = fflat (^)
+let sfflat x = fflat (^) x
 
 let print_pair x = print_endline (string_of_pair' x)
 
@@ -104,6 +126,6 @@ let a = exactly 'a'
 let b = exactly 'b'
 
 ;; 
-let pair = case (mul_infix "  *  bc") empty_pair in
+let pair = case (primary_expr "'hello world'") empty_pair in
 print_pair (pair)
 
