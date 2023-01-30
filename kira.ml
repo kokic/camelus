@@ -1,6 +1,6 @@
 
 
-let return x input = Some (x, input)
+let return x source = Some (x, source)
 
 let (=?) s = String.length s
 let (|%|) s n = if n >= 0 then n else (=?) s + n
@@ -23,7 +23,6 @@ let exactly' x = let n = (=?) x in fun s -> if x = subs' s (n - 1)
 
 let includes xs = token (fun x -> (List.exists ((==) x) xs))
 
-
 let empty = "_"
 let empty_pair = (empty, empty)
 let empty_pair' = (empty_pair, empty)
@@ -35,15 +34,57 @@ let (&) f g x = f (g x)
 
 let destruct x f = match x with Some (x1, x2) -> f x1 x2 | _ -> None
 
+let map a f source = destruct (a source) (fun a1 a2 -> return (f a1) a2)
+
+let asterisk a source = let rec aux buffer residue = 
+  let pair = Some (buffer, residue) in 
+  if (=?) residue > 0 then match a residue with 
+    | Some (a1, a2) -> aux (buffer ^ a1) a2 
+    | _ -> pair else pair
+in aux "" source
+
+let plus a source = match asterisk a source with 
+  | Some (buffer, _) as pair when (=?) buffer > 0 -> pair 
+  | _ -> None
+
 let follow a b source = destruct (a source)
 (fun a1 a2 -> destruct (b a2) (fun b1 b2 -> return (a1, b1) b2))
+let (<&>) = follow
 
 let either a b source = match a source with Some _ as x -> x | _ -> b source
-
-let (<&>) = follow
 let (<|>) = either
 
+let skip a b source = destruct (a source)
+(fun a1 a2 -> destruct (b a2) (fun b1 b2 -> return a1 b2))
+let (<^>) = skip
 
+
+let space = exactly ' '
+let spacea = space |> asterisk
+let spaces = space |> plus
+
+
+let loose a = (spacea <&> a |> map) snd
+let soft a = loose a <^> spacea
+
+
+let (-~) a b = fun x -> a <= x && x <= b
+
+let digit = token ('0' -~ '9')
+let digits = digit |> plus
+
+
+let letter = token (fun x -> ('A' -~ 'Z') x || ('a' -~ 'z') x)
+let letters = letter |> plus
+
+
+
+let underline_or_dollar = includes ['_'; '$']
+
+let operators xs = includes xs |> soft
+let unary_prefix = operators ['!'; '^'; '+'; '-']
+let incre_sides = inclusive 2 ["++"; "--"] |> soft
+let mul_infix = exactly' "**" <|> includes ['*'; '/'; '%'] |> soft
 
 
 let tuple_map f g x = (f (fst x), g (snd x))
@@ -63,6 +104,6 @@ let a = exactly 'a'
 let b = exactly 'b'
 
 ;; 
-let pair = case (either a b "ba xkcd") empty_pair in
+let pair = case (mul_infix "  *  bc") empty_pair in
 print_pair (pair)
 
