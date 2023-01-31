@@ -88,7 +88,9 @@ let tuple_map f g x = (f (fst x), g (snd x))
 
 let underline_or_dollar = includes ['_'; '$']
 
+let operator x = exactly x |> soft
 let operators xs = includes xs |> soft
+
 let unary_prefix = operators ['!'; '^'; '+'; '-']
 let incre_sides = inclusive 2 ["++"; "--"] |> soft
 let mul_infix = exactly' "**" <|> includes ['*'; '/'; '%'] |> soft
@@ -113,6 +115,15 @@ let text = quotes ->> text_value <<- quotes
 let primary_expr = identifier <|> number <|> text
 
 
+
+let member_expr_tail = operator '.' ->> identifier
+  <|> (operator '[' ->> identifier <<- operator ']')
+let member_expr = (map (primary_expr <&> member_expr_tail) (map_tuple (^)))
+  <|> primary_expr
+
+let expr = member_expr
+
+
 let string_of_pair x y = ("('" ^ x ^ "', '" ^ y ^ "')")
 let string_of_pair' x = string_of_pair (fst x) (snd x)
 let fflat f x = let a = fst x in (f (fst a) (snd a), snd x)
@@ -122,10 +133,20 @@ let print_pair x = print_endline (string_of_pair' x)
 
 
 
-let a = exactly 'a'
-let b = exactly 'b'
-
 ;; 
-let pair = case (primary_expr "'hello world'") empty_pair in
+let pair = case (member_expr "1") empty_pair in
 print_pair (pair)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
