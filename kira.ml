@@ -16,8 +16,8 @@ let token predicate = fun s -> if not_empty s && predicate s.[0]
 let tokens n predicate s = let len = (=?) s in 
   if len >= n then let x = subs' s (n - 1) in 
     if predicate x then return x (s >> n) 
+    else None
   else None
-else None
 
 let inclusive n xs = tokens n (fun x -> (List.exists ((=) x) xs))
 
@@ -131,11 +131,11 @@ let ddot_accessor = operator '.' ->> identifier
 
 let f = glue
 
-type 'a state = S of string | State of 'a state * string
+type ('token, 'value) state = State of 'value option * 'token
 
-let x1 = State (S "", "")
+let x1 = State (Some "", "")
 
-type 'a parser = Parser of ('a -> (string * 'a) option)
+type ('token, 'value) parse = Parser of ('token -> ('value, 'token) state)
 
 
 (* let x = Parser (identifier <&> identifier) *)
