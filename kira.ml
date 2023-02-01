@@ -1,6 +1,4 @@
 
-let return x source = Some (x, source)
-
 let (=?) s = String.length s
 let (|%|) s n = if n >= 0 then n else (=?) s + n
 let subs s off pos = String.sub s off ((s |%| pos) - off + 1)
@@ -9,6 +7,9 @@ let drops n s = if n >= (=?) s then "" else subs s n ((=?) s - 1)
 let (>>) s n = drops n s
 
 let not_empty = (<>) String.empty
+
+
+let return x source = Some (x, source)
 
 let token predicate = fun s -> if not_empty s && predicate s.[0] 
   then return (Char.escaped s.[0]) (s >> 1) else None
@@ -128,17 +129,6 @@ let brackets = between (operator '[') (operator ']')
 
 let ddot_accessor = operator '.' ->> identifier
 
-
-let f = glue
-
-type ('token, 'value) state = State of 'value option * 'token
-
-let x1 = State (Some "", "")
-
-type ('token, 'value) parse = Parser of ('token -> ('value, 'token) state)
-
-
-(* let x = Parser (identifier <&> identifier) *)
 
 
 
