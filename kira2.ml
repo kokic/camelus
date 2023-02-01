@@ -152,7 +152,7 @@ let underline_or_dollar = includes ['_'; '$']
 let operator x: sparser = exactly' x |> soft
 let operators xs: sparser = includes xs |> soft
 
-let unary_prefix = operators ['!'; '^'; '+'; '-']
+let unary_prefix = operators ['!'; '~'; '+'; '-']
 let incre_sides = inclusive2 ["++"; "--"] |> soft
 let mul_infix = sexactly "**" <|> includes ['*'; '/'; '%'] |> soft
 let add_infix = includes ['+'; '-']
@@ -184,14 +184,24 @@ let ddot_accessor = operator '.' ->> identifier
 
 
 
-let sof_ddot_ask p = map p ((^) " . ")
-let sof_brak_ask p = map p (fun x -> " [" ^ x ^ "] " )
+let sof_ddot_ask p = map p ((^) "->")
+let sof_brak_ask p = map p (fun x -> "->(" ^ x ^ ")" )
+
+let glue p = map p (fun x -> fst x ^ snd x)
 
 let rec expr = Parser (
   fun source -> 
-    let member_expr_tail = ddot_accessor <|> sof_brak_ask (brackets expr) |> plus in
+    let member_expr_tail = ddot_accessor 
+      <|> sof_brak_ask (brackets expr) |> plus in
     let member_expr = extend' primary_expr member_expr_tail in
-    member_expr <-- source 
+    let rec unary_expr = Parser (
+      fun source -> 
+        let canonical = unary_prefix <&> unary_expr
+          <|> (incre_sides <&> member_expr)
+          <|> (member_expr <&> incre_sides) in 
+        glue canonical <|> member_expr <-- source
+    ) in
+    unary_expr <-- source 
 )
 
 
@@ -203,8 +213,7 @@ let rec unary_expr source =
 (glue canonical <|>  member_expr) source  
 *)
 
-let glue p = map p (fun x -> fst x ^ snd x)
 
-;; print_sstate (expr <-- "a[b[c[d]]]")
+;; print_sstate (expr <-- "+a[-b[!c[~d]]]")
 
 
