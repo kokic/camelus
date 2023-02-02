@@ -173,7 +173,7 @@ let quotes = includes ['\''; '"']
 let text_value = token' (fun x -> x != '\'' && x != '\"') |> asterisk
 let text: sparser = sides quotes text_value
 
-let primaryExpr: sparser = identifier <|> number <|> text
+let primary_expr: sparser = identifier <|> number <|> text
 
 let brackets (p: sparser): sparser = between (operator '[') (operator ']') p
 
@@ -186,39 +186,49 @@ let sof_brak_ask p = map p (fun x -> "->(" ^ x ^ ")" )
 
 let glue p = map p (fun x -> fst x ^ snd x)
 
-type expr = ParenthesizedExpr of expr
+type expr = PrimaryExpr of primaryExpr
           | UnaryExpr of string * expr * bool
-          | InfixExpr of infix
+          | InfixExpr of string * expr * expr
           | ConditionalExpr of expr * expr * expr
-          | FunctionCall of fcall
-          | NewExpr of fcall * objectlit option
+          | FunctionCall of functionCall
+          | NewExpr of newExpr
 
-and infix = string * expr * expr
-and fcall = expr * expr list
+(* and infixExpr = string * expr * expr *)
+and functionCall = expr * expr list
+and newExpr = functionCall * objectLiteral option
 
+and primaryExpr = NumberLiteral of string
+                | StringLiteral of string
+                | Keywordliteral of string
+                | Identifier of string
+                | ArrayLiteral of expr list
+                | ObjectLiteral of objectLiteral
+                | ParenthesizedExpr of expr
+
+(* 
 and literal = NumberLiteral of string
             | StringLiteral of string
             | Keywordliteral of string 
             | RegExpLiteral of string
             | ArrayLiteral of expr
-            | ObjectLiteral of objectlit
+            | ObjectLiteral of objectlit *)
 
-and objectlit = (expr * expr) list
+and objectLiteral = (expr * expr) list
 
 
 
-let rec expr s = unaryExpr s
-and memberExprTail: sparser = fun s -> 
+let rec expr s = unary_expr s
+and member_expr_tail: sparser = fun s -> 
       sof_ddot_ask (ddot_accessor)
   <|> sof_brak_ask (brackets expr) 
    |> plus <-- s
-and memberExpr: sparser = fun s -> 
-  (extend' primaryExpr memberExprTail) s
-and unaryExpr: sparser = fun s ->
-  let canonical = unary_prefix <&> unaryExpr
-    <|> (incre_sides <&> memberExpr)
-    <|> (memberExpr <&> incre_sides) in 
-  (glue canonical <|> memberExpr) s
+and member_expr: sparser = fun s -> 
+  (extend' primary_expr member_expr_tail) s
+and unary_expr: sparser = fun s ->
+  let canonical = unary_prefix <&> unary_expr
+    <|> (incre_sides <&> member_expr)
+    <|> (member_expr <&> incre_sides) in 
+  (glue canonical <|> member_expr) s
 
 
 
