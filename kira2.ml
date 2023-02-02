@@ -200,10 +200,12 @@ let rec string_of_expr = function
   | Identifier i -> i
   | ArrayLiteral xs -> string_of_array (List.map string_of_expr xs)
   | ParenthesizedExpr x -> "(" ^ string_of_expr x ^ ")"
+  | PropertyGet (x, y) -> string_of_expr x ^ "." ^ string_of_expr y
+  | ElementGet (x, y) -> string_of_expr x ^ "[" ^ string_of_expr y ^ "]"
   | UnaryExpr (operator, expr, prefix) -> 
     let s = string_of_expr expr in 
     if prefix then operator ^ s else s ^ operator
-  | _ -> "_"
+  | _ -> "type<?>"
 
 let print_expr_state = function
   | State (None, _) -> print_endline "error expr"
@@ -222,26 +224,28 @@ let text_value = token' (fun x -> x != '\'' && x != '\"') |> asterisk
 let text = map (sides quotes text_value) (fun x -> StringLiteral x)
 
 
-let ddot_accessor = operator '.' ->> identifier
+let ddot_access = operator '.' ->> identifier
 let brackets p = between (operator '[') (operator ']') p
 
 let primary_expr = identifier <|> number <|> text
 
-let property_get x y = PropertyGet (x, y)
 
 let rec expr s = unary_expr s
-and member_expr_tail = fun s -> ddot_accessor <|> brackets expr <-- s
+(* and member_expr_tail = fun s -> ddot_accessor <|> brackets expr <-- s *)
 and member_expr = fun s -> 
-  (extend property_get primary_expr identifier) s
-and unary_expr = fun s ->
-        map2 (unary_prefix <&> unary_expr) (fun x y -> UnaryExpr (x, y, true))
-    <|> map2 (incre_sides <&> member_expr) (fun x y -> UnaryExpr (x, y, true))
-    <|> map2 (member_expr <&> incre_sides) (fun x y -> UnaryExpr (y, x, false)) 
-    <|> member_expr <-- s
+      map2 (primary_expr <&> ddot_access) (fun x y -> PropertyGet (x, y))
+  <|> map2 (primary_expr <&> brackets expr) (fun x y -> ElementGet (x, y)) 
+  <|> primary_expr <-- s
+and unary_expr = fun s -> 
+      map2 (unary_prefix <&> unary_expr) (fun x y -> UnaryExpr (x, y, true))
+  <|> map2 (incre_sides <&> member_expr) (fun x y -> UnaryExpr (x, y, true))
+  <|> map2 (member_expr <&> incre_sides) (fun x y -> UnaryExpr (y, x, false)) 
+  <|> member_expr <-- s
 
+(*  *)
 
+(* +++++a[-b[!c[~d]]] *)
 
-
-;; print_expr_state (expr "+++++a[-b[!c[~d]]]")
+;; print_expr_state (unary_expr "+++++a[-b[!c[~d]]]")
 
 
