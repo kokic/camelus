@@ -32,24 +32,24 @@ let string_of_sstate: sstate -> string = string_of_state Fun.id
 let print_sstate s = s |> string_of_sstate |> print_endline
 
 (* type ('token, 'value) gparse = Parser of ('token -> ('value, 'token) gstate) *)
-type 'value parser = Parser of (string -> 'value state)
+(* type 'value parser = Parser of (string -> 'value state) *)
+type 'value parser = string -> 'value state
 type sparser = string parser
 
 type ('a, 'b, 'c) combinator = 'a parser -> 'b parser -> 'c parser
 type scombinator = (string, string, string) combinator
 
 
-let parse source = function Parser p -> p source
+let parse source = function p -> p source
 let (<--) parser source = parse source parser
 
-let map p f = Parser (fun s -> state_map (p <-- s) f)
+let map p f = fun s -> state_map (p <-- s) f
 
 let store a state = state_map state (fun a' -> a, a')
-let follow p p' = Parser (
-  fun s -> match p <-- s with 
-    | State (Some a, b) -> store a (p' <-- b)
-    | _ -> sstate_empty
-)
+let follow p p' = fun s -> match p <-- s with 
+  | State (Some a, b) -> store a (p' <-- b)
+  | _ -> sstate_empty
+
 let (<&>) = follow
 
 let move a b = (a <&> b |> map) snd
@@ -58,12 +58,11 @@ let (->>) = move
 let skip a b = (a <&> b |> map) fst
 let (<<-) = skip
 
-let either p p' = Parser (
-  fun s -> match p <-- s with 
-    | State (Some a, b) as x -> x
-    | _ -> p' <-- s
-)
-let (<|>) = either
+let either p p' = fun s -> match p <-- s with 
+  | State (Some a, b) as x -> x
+  | _ -> p' <-- s
+
+let (<|>) a b = either a b
 
 
 let map_pair f x = f (fst x) (snd x)
@@ -74,35 +73,33 @@ let extend': scombinator = extend (^)
 
 (* sparser *)
 
-let asterisk p = Parser (
-  fun s -> let rec aux buffer = function 
+let asterisk (p: sparser): sparser = fun s -> 
+  let rec aux buffer = function 
     | "" -> return buffer String.empty
     | residue -> match p <-- residue with 
       | State (Some a, b) -> aux (buffer ^ a) b
       | _ -> return buffer residue
   in aux String.empty s
-)
 
-let plus p = Parser (
-  fun s -> match asterisk p <-- s with 
-    | State (Some a, _) as x when not_empty a -> x
-    | _ -> sstate_empty 
-)
+let plus p: sparser = fun s -> match asterisk p <-- s with 
+  | State (Some a, _) as x when not_empty a -> x
+  | _ -> sstate_empty 
+
 
 (* generator *)
 
-let token predicate = Parser (
+let token predicate: char parser = 
   function "" -> sstate_empty
     | s when predicate s.[0] -> return s.[0] (s >> 1)
     | _ -> sstate_empty
-)
+
 let token' predicate: sparser = map (token predicate) Char.escaped
-let tokens n predicate: sparser = Parser (
+let tokens n predicate: sparser = 
   function "" -> sstate_empty
     | s when (=?) s < n -> sstate_empty
     | s -> let x = subs' s (n - 1) in if predicate x 
       then return x (s >> n) else sstate_empty
-)
+
 let token2 = tokens 2
 let token3 = tokens 3
 
@@ -153,13 +150,13 @@ let operator x: sparser = exactly' x |> soft
 let operators xs: sparser = includes xs |> soft
 
 let unary_prefix = operators ['!'; '~'; '+'; '-']
-let incre_sides = inclusive2 ["++"; "--"] |> soft
-let mul_infix = sexactly "**" <|> includes ['*'; '/'; '%'] |> soft
+let incre_sides: sparser = inclusive2 ["++"; "--"] |> soft
+let mul_infix: sparser = sexactly "**" <|> includes ['*'; '/'; '%'] |> soft
 let add_infix = includes ['+'; '-']
 let shift_infix = inclusive2 ["<<"; ">>"]
 let eq_infix = inclusive2 ["=="; "!="]
-let rel_infix = inclusive2 ["<="; ">="] <|> includes ['<'; '>']
-let assign_infix = exactly' '=' 
+let rel_infix: sparser = inclusive2 ["<="; ">="] <|> includes ['<'; '>']
+let assign_infix: sparser = exactly' '=' 
   <|> inclusive3 ["<<="; ">>="; "**="]
   <|> inclusive2 ["&="; "|="; "^="; "+="; "-="; "*="; "/="; "%="]
 
@@ -174,13 +171,13 @@ let number = digits
 
 let quotes = includes ['\''; '"']
 let text_value = token' (fun x -> x != '\'' && x != '\"') |> asterisk
-let text = sides quotes text_value
+let text: sparser = sides quotes text_value
 
-let primary_expr = identifier <|> number <|> text
+let primaryExpr: sparser = identifier <|> number <|> text
 
-let brackets p = between (operator '[') (operator ']') p
+let brackets (p: sparser): sparser = between (operator '[') (operator ']') p
 
-let ddot_accessor = operator '.' ->> identifier
+let ddot_accessor: sparser = operator '.' ->> identifier
 
 
 
@@ -189,31 +186,43 @@ let sof_brak_ask p = map p (fun x -> "->(" ^ x ^ ")" )
 
 let glue p = map p (fun x -> fst x ^ snd x)
 
-let rec expr = Parser (
-  fun source -> 
-    let member_expr_tail = ddot_accessor 
-      <|> sof_brak_ask (brackets expr) |> plus in
-    let member_expr = extend' primary_expr member_expr_tail in
-    let rec unary_expr = Parser (
-      fun source -> 
-        let canonical = unary_prefix <&> unary_expr
-          <|> (incre_sides <&> member_expr)
-          <|> (member_expr <&> incre_sides) in 
-        glue canonical <|> member_expr <-- source
-    ) in
-    unary_expr <-- source 
-)
+type expr = ParenthesizedExpr of expr
+          | UnaryExpr of string * expr * bool
+          | InfixExpr of infix
+          | ConditionalExpr of expr * expr * expr
+          | FunctionCall of fcall
+          | NewExpr of fcall * objectlit option
+
+and infix = string * expr * expr
+and fcall = expr * expr list
+
+and literal = NumberLiteral of string
+            | StringLiteral of string
+            | Keywordliteral of string 
+            | RegExpLiteral of string
+            | ArrayLiteral of expr
+            | ObjectLiteral of objectlit
+
+and objectlit = (expr * expr) list
 
 
-(* 
-let rec unary_expr source = 
-  let canonical = unary_prefix <&> unary_expr 
-    <|> (incre_sides <&> member_expr)
-    <|> (member_expr <&> incre_sides) in 
-(glue canonical <|>  member_expr) source  
-*)
+
+let rec expr s = unaryExpr s
+and memberExprTail: sparser = fun s -> 
+      sof_ddot_ask (ddot_accessor)
+  <|> sof_brak_ask (brackets expr) 
+   |> plus <-- s
+and memberExpr: sparser = fun s -> 
+  (extend' primaryExpr memberExprTail) s
+and unaryExpr: sparser = fun s ->
+  let canonical = unary_prefix <&> unaryExpr
+    <|> (incre_sides <&> memberExpr)
+    <|> (memberExpr <&> incre_sides) in 
+  (glue canonical <|> memberExpr) s
 
 
-;; print_sstate (expr <-- "+a[-b[!c[~d]]]")
+
+
+;; print_sstate (expr <-- "+++++a[-b[!c[~d]]]")
 
 
