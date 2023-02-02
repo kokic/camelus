@@ -164,10 +164,10 @@ let operators xs: sparser = includes xs |> soft
 let unary_prefix = operators ['!'; '~'; '+'; '-']
 let incre_sides: sparser = inclusive2 ["++"; "--"] |> soft
 let mul_infix: sparser = sexactly "**" <|> includes ['*'; '/'; '%'] |> soft
-let add_infix = includes ['+'; '-']
-let shift_infix = inclusive2 ["<<"; ">>"]
-let eq_infix = inclusive2 ["=="; "!="]
-let rel_infix: sparser = inclusive2 ["<="; ">="] <|> includes ['<'; '>']
+let add_infix = operators ['+'; '-']
+let shift_infix = inclusive2 ["<<"; ">>"] |> soft
+let rel_infix: sparser = inclusive2 ["<="; ">="] <|> includes ['<'; '>'] |> soft
+let eq_infix = inclusive2 ["=="; "!="] |> soft
 let assign_infix: sparser = exactly' '=' 
   <|> inclusive3 ["<<="; ">>="; "**="]
   <|> inclusive2 ["&="; "|="; "^="; "+="; "-="; "*="; "/="; "%="]
@@ -214,9 +214,9 @@ let rec string_of_expr = function
   | ParenthesizedExpr x -> "(" ^ string_of_expr x ^ ")"
   | PropertyGet (x, y) -> string_of_expr x ^ "." ^ string_of_expr y
   | ElementGet (x, y) -> string_of_expr x ^ "[" ^ string_of_expr y ^ "]"
-  | UnaryExpr (operator, expr, prefix) -> 
-    let s = string_of_expr expr in 
+  | UnaryExpr (operator, x, prefix) -> let s = string_of_expr x in 
     if prefix then operator ^ s else s ^ operator
+  | InfixExpr (i, x, y) -> string_of_expr x ^ i ^ string_of_expr y
   | _ -> "type<?>"
 
 let print_expr_state = function
@@ -244,28 +244,45 @@ let primary_expr = identifier <|> number <|> text
 
 
 
-
 let one_some p p' f s = 
   match map2 (p <&> p') f <-- s with
     | State (None, _) as x -> x
     | State (Some a, b) -> any p' f a <-- b
 
-let rec expr s = unary_expr s
+let infix_lift p i = one_some p (i <&> p) 
+  (fun x y -> InfixExpr (fst y, x, snd y)) <|> p
+
+let rec expr s = eq_expr s
 
 and member_expr = fun s -> 
       one_some primary_expr ddot_access (fun x y -> PropertyGet (x, y))
   <|> one_some primary_expr (brackets expr) (fun x y -> ElementGet (x, y))
   <|> primary_expr <-- s
+
 and unary_expr = fun s -> 
       map2 (unary_prefix <&> unary_expr) (fun x y -> UnaryExpr (x, y, true))
   <|> map2 (incre_sides <&> member_expr) (fun x y -> UnaryExpr (x, y, true))
   <|> map2 (member_expr <&> incre_sides) (fun x y -> UnaryExpr (y, x, false)) 
   <|> member_expr <-- s
 
-(*  *)
+and mul_expr s = (infix_lift unary_expr mul_infix) s
+and add_expr s = (infix_lift mul_expr add_infix) s
+and shift_expr s = (infix_lift add_expr shift_infix) s
+and rel_expr s = (infix_lift shift_expr rel_infix) s
+and eq_expr s = (infix_lift rel_expr eq_infix) s
 
 (* +++++a[-b[!c[~d]]] *)
 
-;; print_expr_state (expr "a[b][c]")
+
+
+
+
+;; print_expr_state (expr "1 >> a + b [b.c * f + j][c.d / g - k] >= 1 == 'good'")
+
+
+
+
+
+
 
 
