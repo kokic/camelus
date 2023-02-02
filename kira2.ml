@@ -71,7 +71,19 @@ let extend': scombinator = extend (^)
 
 
 
+let any p f id = fun s -> 
+  let rec aux accum = function 
+    | "" -> return accum String.empty
+    | residue -> match p <-- residue with 
+      | State (Some a, b) -> aux (f accum a) b
+      | _ -> return accum residue
+  in aux id s
+
+
+
 (* sparser *)
+
+(* let asterisk (p: sparser): sparser = any p (^) String.empty *)
 
 let asterisk (p: sparser): sparser = fun s -> 
   let rec aux buffer = function 
@@ -230,11 +242,19 @@ let brackets p = between (operator '[') (operator ']') p
 let primary_expr = identifier <|> number <|> text
 
 
+
+
+
+let one_some p p' f s = 
+  match map2 (p <&> p') f <-- s with
+    | State (None, _) as x -> x
+    | State (Some a, b) -> any p' f a <-- b
+
 let rec expr s = unary_expr s
-(* and member_expr_tail = fun s -> ddot_accessor <|> brackets expr <-- s *)
+
 and member_expr = fun s -> 
-      map2 (primary_expr <&> ddot_access) (fun x y -> PropertyGet (x, y))
-  <|> map2 (primary_expr <&> brackets expr) (fun x y -> ElementGet (x, y)) 
+      one_some primary_expr ddot_access (fun x y -> PropertyGet (x, y))
+  <|> one_some primary_expr (brackets expr) (fun x y -> ElementGet (x, y))
   <|> primary_expr <-- s
 and unary_expr = fun s -> 
       map2 (unary_prefix <&> unary_expr) (fun x y -> UnaryExpr (x, y, true))
@@ -246,6 +266,6 @@ and unary_expr = fun s ->
 
 (* +++++a[-b[!c[~d]]] *)
 
-;; print_expr_state (unary_expr "+++++a[-b[!c[~d]]]")
+;; print_expr_state (expr "a[b][c]")
 
 
