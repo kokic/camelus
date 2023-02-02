@@ -49,8 +49,9 @@ let store a state = state_map state (fun a' -> a, a')
 let follow p p' = fun s -> match p <-- s with 
   | State (Some a, b) -> store a (p' <-- b)
   | _ -> sstate_empty
-
 let (<&>) = follow
+
+let map2 p f = map p (fun x -> f (fst x) (snd x))
 
 let move a b = (a <&> b |> map) snd
 let (->>) = move
@@ -65,8 +66,7 @@ let either p p' = fun s -> match p <-- s with
 let (<|>) a b = either a b
 
 
-let map_pair f x = f (fst x) (snd x)
-let extend f a b = (map (a <&> b) (map_pair f)) <|> a
+let extend f a b = (map2 (a <&> b) f) <|> a
 let extend': scombinator = extend (^)
 
 
@@ -161,78 +161,87 @@ let assign_infix: sparser = exactly' '='
   <|> inclusive2 ["&="; "|="; "^="; "+="; "-="; "*="; "/="; "%="]
 
 
-let identifier_head = underline_or_dollar <|> letter
-let identifier_body = letters <|> digits <|> underline_or_dollar |> asterisk
-let identifier = extend' identifier_head identifier_body
-
-
-
-let number = digits
-
-let quotes = includes ['\''; '"']
-let text_value = token' (fun x -> x != '\'' && x != '\"') |> asterisk
-let text: sparser = sides quotes text_value
-
-let primary_expr: sparser = identifier <|> number <|> text
-
-let brackets (p: sparser): sparser = between (operator '[') (operator ']') p
-
-let ddot_accessor: sparser = operator '.' ->> identifier
-
-
-
 let sof_ddot_ask p = map p ((^) "->")
 let sof_brak_ask p = map p (fun x -> "->(" ^ x ^ ")" )
 
 let glue p = map p (fun x -> fst x ^ snd x)
 
-type expr = PrimaryExpr of primaryExpr
+
+type expr = NumberLiteral of string
+          | StringLiteral of string
+          | Keywordliteral of string
+          | Identifier of string
+          | ArrayLiteral of expr list
+          | ObjectLiteral of (expr * expr) list
+          | ParenthesizedExpr of expr
+          | RegExpLiteral of string
+
+          | ElementGet of expr * expr
+          | PropertyGet of expr * expr
+
+          | FunctionExpr of string * params * expr
           | UnaryExpr of string * expr * bool
           | InfixExpr of string * expr * expr
           | ConditionalExpr of expr * expr * expr
-          | FunctionCall of functionCall
-          | NewExpr of newExpr
+          | FunctionCall of expr * params
 
-(* and infixExpr = string * expr * expr *)
-and functionCall = expr * expr list
-and newExpr = functionCall * objectLiteral option
+          (* | NewExpr of newExpr *)
 
-and primaryExpr = NumberLiteral of string
-                | StringLiteral of string
-                | Keywordliteral of string
-                | Identifier of string
-                | ArrayLiteral of expr list
-                | ObjectLiteral of objectLiteral
-                | ParenthesizedExpr of expr
-
-(* 
-and literal = NumberLiteral of string
-            | StringLiteral of string
-            | Keywordliteral of string 
-            | RegExpLiteral of string
-            | ArrayLiteral of expr
-            | ObjectLiteral of objectlit *)
-
-and objectLiteral = (expr * expr) list
+and params = expr list
+(* and newExpr = functionCall * objectLiteral option *)
 
 
+let string_of_array xs = "[" ^ String.concat ", " xs ^ "]"
+
+let rec string_of_expr = function 
+  | NumberLiteral n -> n
+  | StringLiteral s -> "\"" ^ s ^ "\""
+  | Keywordliteral k -> "<" ^ k ^ ">"
+  | Identifier i -> i
+  | ArrayLiteral xs -> string_of_array (List.map string_of_expr xs)
+  | ParenthesizedExpr x -> "(" ^ string_of_expr x ^ ")"
+  | UnaryExpr (operator, expr, prefix) -> 
+    let s = string_of_expr expr in 
+    if prefix then operator ^ s else s ^ operator
+  | _ -> "_"
+
+let print_expr_state = function
+  | State (None, _) -> print_endline "error expr"
+  | State (Some expr, s) -> let result = string_of_expr expr in 
+    print_endline (string_of_pair result s)
+
+let identifier_head = underline_or_dollar <|> letter
+let identifier_body = letters <|> digits <|> underline_or_dollar |> asterisk
+let identifier = map (extend' identifier_head identifier_body) 
+  (fun x -> Identifier x)
+
+let number = map digits (fun x -> NumberLiteral x)
+
+let quotes = includes ['\''; '"']
+let text_value = token' (fun x -> x != '\'' && x != '\"') |> asterisk
+let text = map (sides quotes text_value) (fun x -> StringLiteral x)
+
+
+let ddot_accessor = operator '.' ->> identifier
+let brackets p = between (operator '[') (operator ']') p
+
+let primary_expr = identifier <|> number <|> text
+
+let property_get x y = PropertyGet (x, y)
 
 let rec expr s = unary_expr s
-and member_expr_tail: sparser = fun s -> 
-      sof_ddot_ask (ddot_accessor)
-  <|> sof_brak_ask (brackets expr) 
-   |> plus <-- s
-and member_expr: sparser = fun s -> 
-  (extend' primary_expr member_expr_tail) s
-and unary_expr: sparser = fun s ->
-  let canonical = unary_prefix <&> unary_expr
-    <|> (incre_sides <&> member_expr)
-    <|> (member_expr <&> incre_sides) in 
-  (glue canonical <|> member_expr) s
+and member_expr_tail = fun s -> ddot_accessor <|> brackets expr <-- s
+and member_expr = fun s -> 
+  (extend property_get primary_expr identifier) s
+and unary_expr = fun s ->
+        map2 (unary_prefix <&> unary_expr) (fun x y -> UnaryExpr (x, y, true))
+    <|> map2 (incre_sides <&> member_expr) (fun x y -> UnaryExpr (x, y, true))
+    <|> map2 (member_expr <&> incre_sides) (fun x y -> UnaryExpr (y, x, false)) 
+    <|> member_expr <-- s
 
 
 
 
-;; print_sstate (expr <-- "+++++a[-b[!c[~d]]]")
+;; print_expr_state (expr "+++++a[-b[!c[~d]]]")
 
 
