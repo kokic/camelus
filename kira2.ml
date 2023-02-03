@@ -244,6 +244,7 @@ let lbracket = operator '['
 let rbracket = operator ']'
 let brackets p = between lbracket rbracket p
 
+let parens p = between (operator '(') (operator ')') p
 
 let one_some p p' f s = 
   match map2 (p <&> p') f <-- s with
@@ -265,14 +266,17 @@ let infix_lift p i = one_some p (i <&> p)
   map (operator '[' ->> tail) (fun x -> ArrayLiteral x) <-- s *)
 
 let rec expr s = eq_expr s
+
 and array_literal s = 
   let rec_part = any (operator ',' ->> eq_expr) (fun x y -> x @ [y]) [] in
   let list_parser = map (lbracket ->> rbracket) (fun _ -> ([]: expr list))
     <|> map (brackets eq_expr) (fun x -> [x]) 
     <|> map2 (brackets (eq_expr <&> rec_part)) List.cons in
   map list_parser (fun x -> ArrayLiteral x) <-- s
+and paren_expr s = map (parens expr) (fun x -> ParenthesizedExpr x) s 
 and primary_expr s = 
       array_literal
+  <|> paren_expr
   <|> identifier
   <|> number
   <|> text <-- s
@@ -305,11 +309,11 @@ let array_literal =
     <|> map2 (brackets (eq_expr <&> rec_part)) List.cons in
   map list_parser (fun x -> ArrayLiteral x)
 
-;; print_expr_state (expr "[] + [a] + [a, b, c] + [a, b, d, e, f]")
+;; print_expr_state (expr "[a == (b)]")
 
 
 
-(* [] + [a] + [a, b, c] + [a, b, d, e, f] *)
+(* ([] + [a]) + [a, b, c] + [a, b, d, e, f] *)
 
 
 
