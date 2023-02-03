@@ -216,7 +216,7 @@ let rec string_of_expr = function
   | ElementGet (x, y) -> string_of_expr x ^ "[" ^ string_of_expr y ^ "]"
   | UnaryExpr (operator, x, prefix) -> let s = string_of_expr x in 
     if prefix then operator ^ s else s ^ operator
-  | InfixExpr (i, x, y) -> string_of_expr x ^ i ^ string_of_expr y
+  | InfixExpr (i, x, y) -> string_of_expr x ^ " " ^ i ^ " " ^ string_of_expr y
   | _ -> "type<?>"
 
 let print_expr_state = function
@@ -237,11 +237,12 @@ let text = map (sides quotes text_value) (fun x -> StringLiteral x)
 
 
 let ddot_access = operator '.' ->> identifier
-let brackets p = between (operator '[') (operator ']') p
 
-let primary_expr = identifier <|> number <|> text
+let comma_of p = operator ',' ->> p
 
-
+let lbracket = operator '['
+let rbracket = operator ']'
+let brackets p = between lbracket rbracket p
 
 
 let one_some p p' f s = 
@@ -252,14 +253,36 @@ let one_some p p' f s =
 let infix_lift p i = one_some p (i <&> p) 
   (fun x y -> InfixExpr (fst y, x, snd y)) <|> p
 
-let rec expr s = eq_expr s
 
-and member_expr = fun s -> 
+
+  (* and array_literal s = 
+  let tail = 
+      map (operator ']') (fun _ -> ([]: expr list))
+  <|> map (eq_expr <<- operator ']') (fun x -> [x])
+  <|> map2 (eq_expr <&> any (operator ',' ->> eq_expr) (fun x y -> x @ [y]) []  <<- operator ']') 
+        (fun x xs -> x :: xs)
+  in
+  map (operator '[' ->> tail) (fun x -> ArrayLiteral x) <-- s *)
+
+let rec expr s = eq_expr s
+and array_literal s = 
+  let rec_part = any (operator ',' ->> eq_expr) (fun x y -> x @ [y]) [] in
+  let list_parser = map (lbracket ->> rbracket) (fun _ -> ([]: expr list))
+    <|> map (brackets eq_expr) (fun x -> [x]) 
+    <|> map2 (brackets (eq_expr <&> rec_part)) List.cons in
+  map list_parser (fun x -> ArrayLiteral x) <-- s
+and primary_expr s = 
+      array_literal
+  <|> identifier
+  <|> number
+  <|> text <-- s
+
+and member_expr s = 
       one_some primary_expr ddot_access (fun x y -> PropertyGet (x, y))
   <|> one_some primary_expr (brackets expr) (fun x y -> ElementGet (x, y))
   <|> primary_expr <-- s
 
-and unary_expr = fun s -> 
+and unary_expr s = 
       map2 (unary_prefix <&> unary_expr) (fun x y -> UnaryExpr (x, y, true))
   <|> map2 (incre_sides <&> member_expr) (fun x y -> UnaryExpr (x, y, true))
   <|> map2 (member_expr <&> incre_sides) (fun x y -> UnaryExpr (y, x, false)) 
@@ -271,17 +294,22 @@ and shift_expr s = (infix_lift add_expr shift_infix) s
 and rel_expr s = (infix_lift shift_expr rel_infix) s
 and eq_expr s = (infix_lift rel_expr eq_infix) s
 
-(* +++++a[-b[!c[~d]]] *)
+
+(* 1 >> a + b [b.c * f + j][c.d / g - k] >= 1 == 'good' *)
+
+
+let array_literal = 
+  let rec_part = any (operator ',' ->> eq_expr) (fun x y -> x @ [y]) [] in
+  let list_parser = map (lbracket ->> rbracket) (fun _ -> ([]: expr list))
+    <|> map (brackets eq_expr) (fun x -> [x]) 
+    <|> map2 (brackets (eq_expr <&> rec_part)) List.cons in
+  map list_parser (fun x -> ArrayLiteral x)
+
+;; print_expr_state (expr "[] + [a] + [a, b, c] + [a, b, d, e, f]")
 
 
 
-
-
-;; print_expr_state (expr "1 >> a + b [b.c * f + j][c.d / g - k] >= 1 == 'good'")
-
-
-
-
+(* [] + [a] + [a, b, c] + [a, b, d, e, f] *)
 
 
 
