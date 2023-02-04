@@ -32,16 +32,76 @@ let string_of_sstate: sstate -> string = string_of_state Fun.id
 let print_sstate s = s |> string_of_sstate |> print_endline
 
 
-type archetype = COMMA 
-               | DOT
-               | COLON
-               | SEMI
+type archetype = NUMBER 
+               | STRING
+               | IDENTIFIER
+               
+               | COMMA 
+               | DDOT 
+               | COLON 
                | HOOK
 
-               
+               | LP 
+               | RP 
+               | LB 
+               | RB 
+
+               | AND
+               | OR
+               | NOT
+
+               | EQ
+               | NE
+               | LT
+               | LE
+               | GT
+               | GE
+
+               | ADD
+               | SUB
+               | MUL
+               | DIV
+               | MOD
+               | POW
 
 type token = archetype * string
 type tokens = token list
+
+
+
+let (-~) a b = fun x -> a <= x && x <= b
+
+let is_letter x = ('A' -~ 'Z') x || ('a' -~ 'z') x
+
+let esc = Char.escaped
+
+let tokenize = function "" -> []
+  | source -> let size = (=?) source in
+    let rec lex pos xs = if pos >= size then xs else
+      let push t n v = lex (pos + n) xs @ [t, v] in
+      let just t n = push t n String.empty in
+      let just' t = just t 1 in
+      let at n = source.[pos + n] in
+      let rec auto f n buffer = let curr = (n, buffer) in
+        if pos + n >= size then curr else let x = at n in 
+        if f x then auto f (n + 1) (buffer ^ esc x) else curr in
+      match at 0 with
+        | ' ' -> lex (pos + 1) xs
+        | ',' -> just' COMMA
+        | '.' -> just' DDOT
+        | x when is_letter x -> 
+          let data = auto is_letter 0 "" in 
+          push IDENTIFIER 
+            (print_endline (fst data |> string_of_int); fst data) 
+            (print_endline (snd data); snd data)
+        | _ -> xs
+  in lex 0 []
+
+
+;; 
+tokenize "abc good"
+
+
 
 (* type ('token, 'value) gparse = Parser of ('token -> ('value, 'token) gstate) *)
 (* type 'value parser = Parser of (string -> 'value state) *)
@@ -156,8 +216,6 @@ let spaces = space |> plus
 
 let soft a = spacea ->> a <<- spacea
 
-
-let (-~) a b = fun x -> a <= x && x <= b
 
 let digit = token' ('0' -~ '9')
 let digits = digit |> plus
