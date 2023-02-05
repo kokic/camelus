@@ -89,6 +89,13 @@ let tokenize = function "" -> []
         | ' ' -> lex (pos + 1) xs
         | ',' -> just' COMMA
         | '.' -> just' DDOT
+        | ':' -> just' COLON
+        | '?' -> just' HOOK
+        | '(' -> just' LP
+        | ')' -> just' RP
+        | '[' -> just' LB
+        | ']' -> just' RB
+
         | x when is_letter x -> 
           let data = auto is_letter 0 "" in 
           push IDENTIFIER 
