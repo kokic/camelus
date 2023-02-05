@@ -32,14 +32,45 @@ let rec ellps ell xs = match ell with
   | 2 -> powset xs
   | _ -> if ell < 0 && ell mod 2 == 0 then ellps (-ell) xs
          else let prec = ellps (ell - 1) xs in 
-         concat (List.map (fun l -> powset l) prec)
+         concat (List.map powset prec)
       
 let print_ellps ell src = let xs = ellps ell src in 
   print_endline (powset_tos xs ^ ": " ^ string_of_int(length xs)) 
 
 let print_ellps_ab ell = print_ellps ell ["a" ; "b"]
 
-;; print_ellps_ab (-3)
-;; print_ellps_ab (-5)
+;; 
+
+print_ellps_ab (-1);
+print_newline ();
+
+print_ellps_ab (1);
+print_newline ();
+
+print_ellps_ab (-2);
+print_newline ();
+
+print_ellps_ab (2);
+print_newline ();
+
+print_ellps_ab (-3);
+print_newline ();
+
+print_ellps_ab (3);
+print_newline ();
+
+print_ellps_ab (-4);
+print_newline ();
+
+print_ellps_ab (4);
+print_newline ();
+
+print_ellps_ab (-5);
+print_newline ();
+
+print_ellps_ab (5);
+print_newline ();
+
+
 
 
