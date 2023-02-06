@@ -63,6 +63,21 @@ type archetype = NUMBER
                | DIV
                | MOD
                | POW
+               
+let archetype_name = function
+  | NUMBER -> "number"
+  | STRING -> "string"
+  | IDENTIFIER -> "identifier"
+  | COMMA -> "comma"
+  | DDOT -> "ddot"
+  | COLON -> "colon"
+  | HOOK -> "hook"
+  | LP -> "left-paren"
+  | RP -> "right-paren"
+
+  | MOD -> "mod"
+  | _ -> "unknown"
+
 
 type token = archetype * string
 type tokens = token list
@@ -71,20 +86,30 @@ type tokens = token list
 
 let (-~) a b = fun x -> a <= x && x <= b
 
+let is_digit = '0' -~ '9'
 let is_letter x = ('A' -~ 'Z') x || ('a' -~ 'z') x
+let is_identifier_head x = x == '$' || x == '_' || is_letter x
+let is_identifier_body x = is_identifier_head x || is_digit x
+
+
 
 let esc = Char.escaped
 
 let tokenize = function "" -> []
   | source -> let size = (=?) source in
     let rec lex pos xs = if pos >= size then xs else
-      let push t n v = lex (pos + n) xs @ [t, v] in
-      let just t n = push t n String.empty in
+      let push t n v = lex (pos + n) (xs @ [t, v]) in
+      let just t n = push t n ("<" ^ archetype_name t ^ ">") in
       let just' t = just t 1 in
       let at n = source.[pos + n] in
+      let peek n x = x == at n in
+      let peek' = peek 1 in
       let rec auto f n buffer = let curr = (n, buffer) in
         if pos + n >= size then curr else let x = at n in 
         if f x then auto f (n + 1) (buffer ^ esc x) else curr in
+      let auto' f = auto f 1 "" in
+      let push' t data x = push t (fst data) (esc x ^ snd data) in
+      let auto_push t f x = push' t (auto' f) x in
       match at 0 with
         | ' ' -> lex (pos + 1) xs
         | ',' -> just' COMMA
@@ -95,19 +120,39 @@ let tokenize = function "" -> []
         | ')' -> just' RP
         | '[' -> just' LB
         | ']' -> just' RB
+        
+        | '=' when peek' '=' -> just' EQ
+        | '!' when peek' '=' -> just' NE
+        | '<' when peek' '=' -> just' LE        
+        | '>' when peek' '=' -> just' GE        
+        | '<' -> just' LT
+        | '>' -> just' GT
 
-        | x when is_letter x -> 
-          let data = auto is_letter 0 "" in 
-          push IDENTIFIER 
-            (print_endline (fst data |> string_of_int); fst data) 
-            (print_endline (snd data); snd data)
+        | '!' -> just' NOT 
+        | '&' when peek' '&' -> just' AND 
+        | '|' when peek' '|' -> just' AND 
+
+        | '+' -> just' ADD
+        | '-' -> just' SUB
+        | '*' -> just' MUL
+        | '/' -> just' DIV
+        | '%' -> just' MOD
+        | '^' -> just' POW
+
+        | 'm' when peek 1 'o' 
+                && peek 2 'd' 
+                && peek 3 ' ' -> just MOD 4
+
+        | x when is_digit x -> auto_push NUMBER is_digit x
+        | x when is_identifier_head x -> 
+          auto_push IDENTIFIER is_identifier_body x
         | _ -> xs
   in lex 0 []
 
 
 ;; 
-tokenize "abc good"
-
+let xs = tokenize "_abc mod ($s1good)12.345" in
+List.iter (fun x -> print_endline (snd x)) xs
 
 
 (* type ('token, 'value) gparse = Parser of ('token -> ('value, 'token) gstate) *)
@@ -224,11 +269,11 @@ let spaces = space |> plus
 let soft a = spacea ->> a <<- spacea
 
 
-let digit = token' ('0' -~ '9')
+let digit = token' is_digit
 let digits = digit |> plus
 
 
-let letter = token' (fun x -> ('A' -~ 'Z') x || ('a' -~ 'z') x)
+let letter = token' is_letter
 let letters = letter |> plus
 
 
@@ -312,7 +357,7 @@ let print_expr_state = function
     print_endline (string_of_pair result s)
 
 let identifier_head = underline_or_dollar <|> letter
-let identifier_body = letters <|> digits <|> underline_or_dollar |> asterisk
+let identifier_body = identifier_head <|> digits |> asterisk
 let identifier = map (extend' identifier_head identifier_body) 
   (fun x -> Identifier x)
 
