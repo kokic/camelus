@@ -95,6 +95,11 @@ let is_identifier_body x = is_identifier_head x || is_digit x
 
 let esc = Char.escaped
 
+let out_token_data x = 
+  let stoken = "s: " ^ snd x in
+  let slen = "n: " ^ (fst x |> string_of_int) in
+  print_endline (stoken ^ ", " ^ slen)
+
 let tokenize = function "" -> []
   | source -> let size = (=?) source in
     let rec lex pos xs = if pos >= size then xs else
@@ -131,7 +136,7 @@ let tokenize = function "" -> []
         | '!' -> just' NOT 
         | '&' when peek' '&' -> just' AND 
         | '|' when peek' '|' -> just' AND 
-
+        
         | '+' -> just' ADD
         | '-' -> just' SUB
         | '*' -> just' MUL
@@ -142,6 +147,10 @@ let tokenize = function "" -> []
         | 'm' when peek 1 'o' 
                 && peek 2 'd' 
                 && peek 3 ' ' -> just MOD 4
+                
+        | 'p' when peek 1 'o' 
+                && peek 2 'w' 
+                && peek 3 ' ' -> just POW 4
 
         | x when is_digit x -> auto_push NUMBER is_digit x
         | x when is_identifier_head x -> 
