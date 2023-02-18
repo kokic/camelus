@@ -40,6 +40,8 @@ type archetype = NUMBER
                | DDOT 
                | COLON 
                | HOOK
+               
+               | UL
 
                | LP 
                | RP 
@@ -74,8 +76,20 @@ let archetype_name = function
   | HOOK -> "hook"
   | LP -> "left-paren"
   | RP -> "right-paren"
-
+  | UL -> "underline"
+  
   | MOD -> "mod"
+  | POW -> "pow"
+  | ADD -> "+"
+  | SUB -> "-"
+  | MUL -> "*"
+  | DIV -> "/"
+  
+  | LT -> "<"
+  | LE -> "≤"
+  | GT -> ">"
+  | GT -> "≥"
+  
   | _ -> "unknown"
 
 
@@ -126,10 +140,14 @@ let tokenize = function "" -> []
         | '[' -> just' LB
         | ']' -> just' RB
         
+        | '_' ->.just' UL
+        
         | '=' when peek' '=' -> just' EQ
         | '!' when peek' '=' -> just' NE
         | '<' when peek' '=' -> just' LE        
-        | '>' when peek' '=' -> just' GE        
+        | '>' when peek' '=' -> just' GE
+        | '≤' -> just' LE
+        | '≥' -> just' GE        
         | '<' -> just' LT
         | '>' -> just' GT
 
